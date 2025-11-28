@@ -1,5 +1,4 @@
-import User from '../models/user-model.js';
-import RefreshToken from '../models/refresh-token-model.js';
+import User from '../models/User.js';
 import logger from '../utils/logger.js';
 import { validateLogin, validateRegistration } from '../utils/validation.js';
 import generateTokens from '../utils/generateTokens.js';

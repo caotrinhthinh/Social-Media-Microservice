@@ -1,5 +1,5 @@
 import express from 'express';
-const { registerUser, loginUser, refreshToken } = require('../controllers/identity-controller.js');
+import { registerUser } from '../controllers/identity-controller.js';
 
 const router = express.Router();
 

@@ -1,5 +1,4 @@
 import joi from 'joi';
-import { use } from 'react';
 
 const validateRegistration = (data) => {
     const schema = joi.object({

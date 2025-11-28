@@ -6,7 +6,7 @@ import logger from './utils/logger.js';
 import helmet from 'helmet';
 import cors from 'cors';
 import ratelimiterRedis from 'rate-limiter-flexible';
-import redisClient from 'redis';
+import Redis from 'ioredis';
 import rateLimit from 'express-rate-limit';
 import redisStore from 'rate-limit-redis';
 import errorHandler from './middleware/errorHandler.js';
@@ -18,16 +18,18 @@ const PORT = process.env.PORT || 3000;
 
 // Connect to MongoDB
 mongoose
-    .connect(process.env.MONGO_URI, {
-        useNewUrlParser: true, // eslint-disable-line no-undef
-        useUnifiedTopology: true, // eslint-disable-line no-undef
-    })
+    .connect(process.env.MONGO_URI)
     .then(() => logger.info('Connected to MongoDB'))
     .catch((err) => logger.error('MongoDB connection error: %o', err));
 
-const redisClient = require('redis').createClient({
+const redisClient = new Redis({
     url: process.env.REDIS_URL,
 });
+
+redisClient
+    .connect()
+    .then(() => console.log('Connected to Redis'))
+    .catch((err) => console.error('Redis connection error:', err));
 
 // Middleware
 app.use(helmet()); // Security headers
@@ -70,7 +72,7 @@ const sensitiveEndpointsLimiter = rateLimit({
         logger.warn('Sensitive endpoint rate limit exceeded for IP: %s', req.ip);
         res.status(429).json({ success: false, message: 'Too Many Requests' });
     },
-    store: new redisStore({ sendCommand: (...args) => redisClient.sendCommand(args) }), // Use Redis store
+    store: new redisStore({ sendCommand: (...args) => redisClient.call(args) }), // Use Redis store
 });
 
 // Apply rate limiting to sensitive endpoints
