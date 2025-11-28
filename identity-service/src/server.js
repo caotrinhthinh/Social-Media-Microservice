@@ -5,14 +5,18 @@ import identityRoutes from './routes.js/indentity-service.js';
 import logger from './utils/logger.js';
 import helmet from 'helmet';
 import cors from 'cors';
-import { log } from 'winston';
 import ratelimiterRedis from 'rate-limiter-flexible';
 import redisClient from 'redis';
+import rateLimit from 'express-rate-limit';
+import redisStore from 'rate-limit-redis';
+import errorHandler from './middleware/errorHandler.js';
 
 dotenv.config();
 
 const app = express();
+const PORT = process.env.PORT || 3000;
 
+// Connect to MongoDB
 mongoose
     .connect(process.env.MONGO_URI, {
         useNewUrlParser: true, // eslint-disable-line no-undef
@@ -54,3 +58,43 @@ app.use((req, res, next) => {
             res.status(429).json({ success: false, message: 'Too Many Requests' });
         });
 });
+
+// Sensitive endpoint rate limiting
+const sensitiveEndpointsLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 20, // limit each IP to 20 requests per windowMs
+    message: { success: false, message: 'Too many requests, please try again later.' },
+    standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
+    legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+    handler: (req, res) => {
+        logger.warn('Sensitive endpoint rate limit exceeded for IP: %s', req.ip);
+        res.status(429).json({ success: false, message: 'Too Many Requests' });
+    },
+    store: new redisStore({ sendCommand: (...args) => redisClient.sendCommand(args) }), // Use Redis store
+});
+
+// Apply rate limiting to sensitive endpoints
+app.use('/api/auth/register', sensitiveEndpointsLimiter);
+
+// Routes
+app.use('/api/auth', identityRoutes);
+
+// Global error handler
+app.use(errorHandler);
+
+app.listen(process.env.PORT || 3000, () => {
+    logger.info(`Identity Service running on port ${process.env.PORT || 3000}`);
+});
+
+// unhandled promise rejections
+process.on('unhandledRejection', (reason, promise) => {
+    logger.error('Unhandled Rejection at: %o, reason: %o', promise, reason);
+});
+
+// uncaught exceptions
+process.on('uncaughtException', (err) => {
+    logger.error('Uncaught Exception: %o', err);
+    process.exit(1); // exit the process
+});
+
+export default app;
